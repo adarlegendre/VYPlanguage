@@ -1,0 +1,19 @@
+// Arithmetic operations test
+var a = 15;
+var b = 3;
+
+var add_result = a + b;
+var sub_result = a - b;
+var mul_result = a * b;
+var div_result = a / b;
+var mod_result = a % b;
+
+print("Arithmetic Results:");
+print(add_result);
+print(sub_result);
+print(mul_result);
+print(div_result);
+print(mod_result);
+
+
+

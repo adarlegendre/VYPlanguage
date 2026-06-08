@@ -1,0 +1,23 @@
+// Control flow test
+var x = 10;
+var y = 20;
+
+if (x > y) {
+    print("x is greater than y");
+} else {
+    print("y is greater than or equal to x");
+}
+
+var i = 0;
+while (i < 5) {
+    print(i);
+    i = i + 1;
+}
+
+for (var j = 0; j < 3; j = j + 1) {
+    print("Loop iteration:");
+    print(j);
+}
+
+
+

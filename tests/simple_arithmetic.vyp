@@ -1,0 +1,17 @@
+// Simple arithmetic test
+void main(void) {
+    int a, b, c;
+    a = 10;
+    b = 5;
+    c = a + b;
+    print("Sum: ", c, "\n");
+    c = a - b;
+    print("Difference: ", c, "\n");
+    c = a * b;
+    print("Product: ", c, "\n");
+    c = a / b;
+    print("Quotient: ", c, "\n");
+}
+
+
+

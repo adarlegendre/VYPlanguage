@@ -1,0 +1,150 @@
+#!/usr/bin/env python3
+"""
+VYP Language Compiler
+Main entry point for the compiler
+"""
+
+import sys
+import os
+import argparse
+from pathlib import Path
+
+# Add src directory to Python path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+from compiler import Compiler
+
+def main():
+    """Main entry point for vypcomp"""
+    parser = argparse.ArgumentParser(
+        description='VYP Language Compiler',
+        prog='vypcomp'
+    )
+    
+    parser.add_argument(
+        'input_file',
+        help='Input VYP source file'
+    )
+    
+    parser.add_argument(
+        '-o', '--output',
+        help='Output file (default: input_file.vypcode)'
+    )
+    
+    parser.add_argument(
+        '--lex-only',
+        action='store_true',
+        help='Only perform lexical analysis'
+    )
+    
+    parser.add_argument(
+        '--parse-only',
+        action='store_true',
+        help='Only perform lexical and syntactic analysis'
+    )
+    
+    parser.add_argument(
+        '--ir-only',
+        action='store_true',
+        help='Generate intermediate representation only'
+    )
+    
+    parser.add_argument(
+        '--verbose', '-v',
+        action='store_true',
+        help='Verbose output'
+    )
+    
+    args = parser.parse_args()
+    
+    # Check if input file exists
+    if not os.path.exists(args.input_file):
+        print(f"Error: Input file '{args.input_file}' not found", file=sys.stderr)
+        sys.exit(1)
+    
+    # Determine output file
+    if args.output:
+        output_file = args.output
+    else:
+        input_path = Path(args.input_file)
+        output_file = str(input_path.with_suffix('.vypcode'))
+    
+    # Read source code
+    try:
+        with open(args.input_file, 'r') as f:
+            source_code = f.read()
+    except Exception as e:
+        print(f"Error reading input file: {e}", file=sys.stderr)
+        sys.exit(1)
+    
+    # Create compiler instance
+    compiler = Compiler()
+    
+    # Perform compilation phases based on flags
+    if args.lex_only:
+        print("Performing lexical analysis only...")
+        from lexer import tokenize
+        tokens = tokenize(source_code)
+        print(f"Generated {len(tokens)} tokens:")
+        for token in tokens:
+            print(f"  {token.type}: {token.value} (line {token.lineno})")
+        return
+    
+    if args.parse_only:
+        print("Performing lexical and syntactic analysis...")
+        from lexer import tokenize
+        from parser import parse
+        
+        tokens = tokenize(source_code)
+        print(f"Generated {len(tokens)} tokens")
+        
+        ast = parse(source_code)
+        print("AST generated successfully")
+        
+        if args.verbose:
+            print("AST:", ast)
+        return
+    
+    if args.ir_only:
+        print("Generating intermediate representation...")
+        from lexer import tokenize
+        from parser import parse
+        from intermediate_representation import IRGenerator
+        
+        tokens = tokenize(source_code)
+        ast = parse(source_code)
+        
+        ir_generator = IRGenerator()
+        ir_instructions = ir_generator.generate_from_ast(ast)
+        
+        print(f"Generated {len(ir_instructions)} IR instructions:")
+        for i, instruction in enumerate(ir_instructions):
+            print(f"{i:3d}: {instruction}")
+        return
+    
+    # Full compilation
+    print(f"Compiling {args.input_file}...")
+    success = compiler.compile(source_code, output_file)
+    
+    # Report errors and warnings
+    errors = compiler.get_errors()
+    warnings = compiler.get_warnings()
+    
+    if errors:
+        print("\nCompilation Errors:", file=sys.stderr)
+        for error in errors:
+            print(f"  {error}", file=sys.stderr)
+    
+    if warnings:
+        print("\nCompilation Warnings:", file=sys.stderr)
+        for warning in warnings:
+            print(f"  {warning}", file=sys.stderr)
+    
+    if success:
+        print(f"Compilation successful. VYPcode written to {output_file}")
+    else:
+        print("Compilation failed.", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

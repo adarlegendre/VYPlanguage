@@ -1,0 +1,10 @@
+// Basic VYP program
+var x = 10;
+var y = 20;
+var sum = x + y;
+
+print("Sum is:");
+print(sum);
+
+
+

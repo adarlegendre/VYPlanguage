@@ -1,0 +1,22 @@
+// Function definition test
+function add(a, b) {
+    return a + b;
+}
+
+function multiply(a, b) {
+    return a * b;
+}
+
+var x = 5;
+var y = 3;
+
+var sum = add(x, y);
+var product = multiply(x, y);
+
+print("Sum:");
+print(sum);
+print("Product:");
+print(product);
+
+
+
