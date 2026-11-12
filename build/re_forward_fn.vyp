@@ -1,0 +1,2 @@
+void main(void) { print(foo()); }
+int foo(void) { return 42; }

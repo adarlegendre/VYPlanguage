@@ -1,6 +1,6 @@
 """
-Symbol Table for VYPlanguage
-Manages identifiers, types, classes, and scopes
+VYPa 2025 - VYPlanguage Compiler
+Authors: AUTHOR_NAME_1 (xlogin01), AUTHOR_NAME_2 (xlogin02)
 """
 
 from typing import Dict, Any, Optional, List
@@ -25,9 +25,9 @@ class Symbol:
 
 class ClassInfo:
     """Represents a class definition"""
-    def __init__(self, name: str, parent: str = "Object"):
+    def __init__(self, name: str, parent: Optional[str] = "Object"):
         self.name = name
-        self.parent = parent
+        self.parent = parent  # None for Object root
         self.fields = {}  # field_name -> Symbol
         self.methods = {}  # method_name -> Symbol
         self.constructors = []  # List of constructors
@@ -70,19 +70,18 @@ class SymbolTable:
     
     def _add_builtin_object_class(self):
         """Add the built-in Object class"""
-        object_class = ClassInfo("Object")
-        
-        # Add built-in methods
+        object_class = ClassInfo("Object", parent=None)
+
         toString_method = Symbol("toString", "string", is_method=True)
         toString_method.return_type = "string"
         toString_method.parameters = []
         object_class.add_method(toString_method)
-        
+
         getClass_method = Symbol("getClass", "string", is_method=True)
         getClass_method.return_type = "string"
         getClass_method.parameters = []
         object_class.add_method(getClass_method)
-        
+
         self.classes["Object"] = object_class
     
     def enter_scope(self):
@@ -206,25 +205,56 @@ class SymbolTable:
         return self.functions.get(name)
     
     def is_subclass(self, subclass: str, superclass: str) -> bool:
-        """Check if subclass is a subclass of superclass"""
+        """True if subclass is the same as or inherits from superclass."""
         if subclass == superclass:
             return True
-        
         class_info = self.get_class(subclass)
         if not class_info:
             return False
-        
-        # Follow inheritance chain
+        seen = set()
         current = class_info.parent
-        while current:
+        while current and current not in seen:
             if current == superclass:
                 return True
+            seen.add(current)
             parent_class = self.get_class(current)
             if not parent_class:
                 break
             current = parent_class.parent
-        
         return False
+
+    def lookup_field(self, class_name: str, field_name: str) -> Optional[Symbol]:
+        """Look up an instance field along the inheritance chain."""
+        seen = set()
+        current = class_name
+        while current and current not in seen:
+            seen.add(current)
+            info = self.get_class(current)
+            if not info:
+                return None
+            field = info.get_field(field_name)
+            if field:
+                return field
+            current = info.parent
+        return None
+
+    def lookup_method(self, class_name: str, method_name: str) -> Optional[Symbol]:
+        """Look up a method along the inheritance chain (child overrides)."""
+        seen = set()
+        current = class_name
+        while current and current not in seen:
+            seen.add(current)
+            info = self.get_class(current)
+            if not info:
+                return None
+            method = info.get_method(method_name)
+            if method:
+                return method
+            current = info.parent
+        return None
+
+    def is_class_type(self, type_name: str) -> bool:
+        return type_name in self.classes
     
     def get_all_symbols(self) -> Dict[str, Symbol]:
         """Get all symbols from all scopes"""

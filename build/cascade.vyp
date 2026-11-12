@@ -1,0 +1,11 @@
+class A : Object {
+  int x;
+  void A(void) {}
+  int get(void) { return this.x; }
+}
+void main(void) {
+  A a;
+  a = new A;
+  a.x = 1;
+  print(a.get().get());
+}

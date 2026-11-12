@@ -1,0 +1,7 @@
+string greet(void) {
+  return "hi";
+}
+void main(void) {
+  print(greet() == "hi");
+  print(greet() == "no");
+}

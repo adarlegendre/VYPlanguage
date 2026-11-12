@@ -1,0 +1,2 @@
+class A : Missing { void A(void) {} }
+void main(void) {}

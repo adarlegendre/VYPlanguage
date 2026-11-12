@@ -1,0 +1,4 @@
+#! /bin/vypint
+# VYPcode: 1.0
+GETWORD $0, 0, 0
+LABEL _end

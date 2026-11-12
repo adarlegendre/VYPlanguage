@@ -1,0 +1,5 @@
+class A : Object {
+  void A(void) {}
+  A self(void) { return this; }
+}
+void main(void) { A a; a = new A; a = a.self(); print(a.getClass()); }

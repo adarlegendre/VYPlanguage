@@ -1,0 +1,4 @@
+void main(void) {
+  /* outer /* inner */ still? */
+  print(1);
+}

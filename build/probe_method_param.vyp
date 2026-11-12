@@ -1,0 +1,7 @@
+class C : Object {
+  int id;
+  int bump(int x) { return this.id + x; }
+}
+void main(void) {
+  C o; o = new C; o.id = 1; print(o.bump(2), "\n");
+}

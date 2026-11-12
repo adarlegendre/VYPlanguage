@@ -1,100 +1,60 @@
-# Makefile for VYP Language Compiler
-# Required for project evaluation
+# Makefile for VYP Language Compiler (VYPa project)
+# Authors: replace xlogin01 / xlogin02 in division and source headers
 
-# Compiler and flags
 PYTHON = python3
-CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -O2
 
-# Directories
 SRC_DIR = src
 TEST_DIR = tests
-DOCS_DIR = docs
 BUILD_DIR = build
-
-# Main targets
 MAIN_TARGET = vypcomp
-TEST_TARGETS = $(wildcard $(TEST_DIR)/*.vyp)
 
-# Default target
+.PHONY: all install test clean distclean help test-%
+
+# Default: ensure compiler script is executable
 all: $(MAIN_TARGET)
 
-# Create the main compiler script
 $(MAIN_TARGET): vypcomp
 	chmod +x vypcomp
 
-# Install dependencies
 install:
 	$(PYTHON) -m pip install -r requirements.txt
 
-# Run tests
-test: $(MAIN_TARGET)
-	@echo "Running tests..."
-	@for test in $(TEST_TARGETS); do \
-		echo "Testing $$test..."; \
-		./$(MAIN_TARGET) $$test -o $(BUILD_DIR)/$$(basename $$test .vyp).c; \
-	done
-
-# Create build directory
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-# Compile a VYP file to VYPcode
-%.vypcode: %.vyp $(MAIN_TARGET) | $(BUILD_DIR)
-	./$(MAIN_TARGET) $< -o $@
+# Compile all valid-looking tests (positional CLI: INPUT [OUTPUT])
+test: $(MAIN_TARGET) | $(BUILD_DIR)
+	@echo "Running compile tests..."
+	@for test in $(TEST_DIR)/simple_arithmetic.vyp \
+	             $(TEST_DIR)/factorial_iterative.vyp \
+	             $(TEST_DIR)/factorial_recursive.vyp \
+	             $(TEST_DIR)/string_operations.vyp \
+	             $(TEST_DIR)/classes_objects.vyp \
+	             $(TEST_DIR)/functions.vyp; do \
+		if [ -f "$$test" ]; then \
+			echo "Compiling $$test..."; \
+			./$(MAIN_TARGET) $$test $(BUILD_DIR)/$$(basename $$test .vyp).vc || exit $$?; \
+		fi; \
+	done
+	@echo "All compile tests OK."
 
-# Run VYPcode with interpreter
-%: %.vypcode
-	java -jar vypint-1.0.jar $<
+# Compile + interpret a named test: make test-simple_arithmetic
+test-%: $(TEST_DIR)/%.vyp $(MAIN_TARGET) | $(BUILD_DIR)
+	./$(MAIN_TARGET) $< $(BUILD_DIR)/$*.vc
+	java -jar vypint-1.0.jar $(BUILD_DIR)/$*.vc
 
-# Clean build artifacts
 clean:
 	rm -rf $(BUILD_DIR)
-	rm -f *.c *.o *.exe
+	rm -f out.vc *.vc
+	rm -f $(SRC_DIR)/parser.out $(SRC_DIR)/parsetab.py
+	rm -rf $(SRC_DIR)/__pycache__
 
-# Clean everything including the compiler
 distclean: clean
-	rm -f $(MAIN_TARGET)
 
-# Run a specific test
-test-%: $(TEST_DIR)/%.vyp $(MAIN_TARGET) | $(BUILD_DIR)
-	@echo "Testing $<..."
-	./$(MAIN_TARGET) $< -o $(BUILD_DIR)/$*.vypcode
-	@echo "Running $*..."
-	java -jar vypint-1.0.jar $(BUILD_DIR)/$*.vypcode
-
-# Development targets
-dev-install: install
-	@echo "Development environment ready"
-
-# Check syntax of all Python files
-lint:
-	$(PYTHON) -m flake8 $(SRC_DIR)/*.py
-
-# Format Python code
-format:
-	$(PYTHON) -m black $(SRC_DIR)/*.py
-
-# Generate documentation
-docs:
-	@echo "Generating documentation..."
-	@mkdir -p $(DOCS_DIR)
-	$(PYTHON) -m pydoc -w $(SRC_DIR)/*.py
-	mv *.html $(DOCS_DIR)/
-
-# Help target
 help:
-	@echo "Available targets:"
-	@echo "  all          - Build the compiler (default)"
-	@echo "  install      - Install Python dependencies"
-	@echo "  test         - Run all tests"
-	@echo "  test-<name>  - Run specific test"
-	@echo "  clean        - Remove build artifacts"
-	@echo "  distclean    - Remove everything including compiler"
-	@echo "  lint         - Check Python code style"
-	@echo "  format       - Format Python code"
-	@echo "  docs         - Generate documentation"
-	@echo "  help         - Show this help"
-
-# Phony targets
-.PHONY: all install test clean distclean dev-install lint format docs help test-%
+	@echo "Targets:"
+	@echo "  all / make     - prepare vypcomp"
+	@echo "  install        - pip install -r requirements.txt"
+	@echo "  test           - compile core test programs"
+	@echo "  test-<name>    - compile and run tests/<name>.vyp with vypint"
+	@echo "  clean          - remove build artifacts"

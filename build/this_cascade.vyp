@@ -1,0 +1,13 @@
+class A : Object {
+  int x;
+  void A(void) { this.x = 1; }
+}
+class B : Object {
+  A a;
+  void B(void) {}
+  int bad(void) { return this.a.x; }
+}
+void main(void) {
+  B b;
+  b = new B;
+}

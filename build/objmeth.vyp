@@ -1,0 +1,6 @@
+class A : Object { void A(void) {} }
+void main(void) {
+  A a;
+  a = new A;
+  print(a.getClass(), " ", a.toString());
+}

@@ -1,0 +1,9 @@
+class A : Object {
+  int x;
+  void A(void) {}
+  void set(void) { x = 1; }
+}
+void main(void) {
+  A a;
+  a = new A;
+}

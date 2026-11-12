@@ -1,0 +1,8 @@
+string greet(void) {
+  return "hi";
+}
+void main(void) {
+  string s;
+  s = greet() + "!";
+  print(s);
+}

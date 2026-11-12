@@ -1,0 +1,6 @@
+class A : Object { void A(void) {} }
+class B : A {
+  void B(void) {}
+  A get(void) { return super; }
+}
+void main(void) {}

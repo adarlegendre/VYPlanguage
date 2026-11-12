@@ -1,0 +1,9 @@
+class A : Object { void A(void) {} }
+void main(void) {
+  A a; A b;
+  a = new A;
+  b = a;
+  print(a == b);
+  b = new A;
+  print(a == b);
+}

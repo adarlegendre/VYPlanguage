@@ -1,0 +1,27 @@
+#! /bin/vypint
+# VYPcode: 1.0
+
+CALL [$SP+1] main
+JUMP _end
+
+LABEL main
+ADDI $SP $SP 2
+SET [$SP] $0
+SET $0 $SP
+SET $2 10
+SET $3 5
+ADDI $4 $2 $3
+CREATE $7 1
+SETWORD $7 0 "Sum: "
+GETWORD $7 $7 0
+WRITES $7
+WRITEI $4
+CREATE $7 1
+SETWORD $7 0 "\n"
+GETWORD $7 $7 0
+WRITES $7
+SET $SP $0
+SET $0 [$SP]
+SUBI $SP $SP 2
+RETURN [$SP+1]
+LABEL _end

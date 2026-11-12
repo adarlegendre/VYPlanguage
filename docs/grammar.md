@@ -89,7 +89,6 @@ variable_list ::= variable_list ',' id
 assignment_statement ::= id '=' expression ';'
 
 if_statement ::= if '(' expression ')' '{' statement_list '}' else '{' statement_list '}'
-               | if '(' expression ')' '{' statement_list '}'
 
 while_statement ::= while '(' expression ')' '{' statement_list '}'
 

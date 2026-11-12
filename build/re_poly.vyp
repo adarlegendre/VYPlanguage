@@ -1,0 +1,13 @@
+class A : Object {
+  void A(void) {}
+  string name(void) { return "A"; }
+}
+class B : A {
+  void B(void) {}
+  string name(void) { return "B"; }
+}
+void main(void) {
+  A x; B y;
+  y = new B; x = y;
+  print(x.name());
+}

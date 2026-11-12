@@ -1,0 +1,2 @@
+string f(void) { int a; a = 1; }
+void main(void) { print(f() == ""); }

@@ -1,0 +1,10 @@
+class A : Object {
+  int x;
+  void A(void) { this.x = 1; }
+  A self(void) { return this; }
+  int bad(void) { return this.self().x; }
+}
+void main(void) {
+  A a;
+  a = new A;
+}

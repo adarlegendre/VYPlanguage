@@ -1,0 +1,2 @@
+class C : Object { }
+void main(void) { C o; o = new C; o.nope(); }

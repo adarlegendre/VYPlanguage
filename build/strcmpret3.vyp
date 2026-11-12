@@ -1,0 +1,10 @@
+string greet(void) {
+  return "hi";
+}
+void main(void) {
+  string a; string b;
+  a = greet();
+  b = greet();
+  print(a == b);
+  print(greet() == greet());
+}

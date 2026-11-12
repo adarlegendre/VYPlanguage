@@ -1,22 +1,18 @@
 // Function definition test
-function add(a, b) {
+int add(int a, int b) {
     return a + b;
 }
 
-function multiply(a, b) {
+int multiply(int a, int b) {
     return a * b;
 }
 
-var x = 5;
-var y = 3;
-
-var sum = add(x, y);
-var product = multiply(x, y);
-
-print("Sum:");
-print(sum);
-print("Product:");
-print(product);
-
-
-
+void main(void) {
+    int x, y, sum, product;
+    x = 5;
+    y = 3;
+    sum = add(x, y);
+    product = multiply(x, y);
+    print("Sum: ", sum, "\n");
+    print("Product: ", product, "\n");
+}

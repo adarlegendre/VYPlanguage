@@ -1,8 +1,9 @@
 """
-Syntactic Analyzer for VYPlanguage
-Uses PLY yacc with LALR parsing
+VYPa 2025 - VYPlanguage Compiler
+Authors: AUTHOR_NAME_1 (xlogin01), AUTHOR_NAME_2 (xlogin02)
 """
 
+import sys
 import ply.yacc as yacc
 from lexer import tokens, lexer
 
@@ -59,13 +60,37 @@ def p_class_members(p):
         p[0] = []
 
 def p_class_member(p):
-    """class_member : variable_definition
-                   | method_definition"""
-    p[0] = p[1]
+    """class_member : data_type IDENTIFIER class_member_tail
+                    | VOID IDENTIFIER LEFT_PAREN param_list RIGHT_PAREN LEFT_BRACE statement_list RIGHT_BRACE"""
+    # Disambiguate fields (int x; / int a, b;) from methods (int foo(void) {...}).
+    # A shared data_type IDENTIFIER prefix must not reduce as a field before '('.
+    if len(p) == 4:
+        kind, payload = p[3]
+        if kind == "field":
+            p[0] = ("var_def", p[1], [p[2]] + payload)
+        else:
+            params, body = payload
+            p[0] = ("method", p[1], p[2], params, body)
+    else:
+        p[0] = ("method", "void", p[2], p[4], p[7])
 
-def p_method_definition(p):
-    """method_definition : type IDENTIFIER LEFT_PAREN param_list RIGHT_PAREN LEFT_BRACE statement_list RIGHT_BRACE"""
-    p[0] = ('method', p[1], p[2], p[4], p[7])
+
+def p_class_member_tail(p):
+    """class_member_tail : field_tail SEMICOLON
+                         | LEFT_PAREN param_list RIGHT_PAREN LEFT_BRACE statement_list RIGHT_BRACE"""
+    if len(p) == 3:
+        p[0] = ("field", p[1])
+    else:
+        p[0] = ("method", (p[2], p[5]))
+
+
+def p_field_tail(p):
+    """field_tail : COMMA IDENTIFIER field_tail
+                  | empty"""
+    if len(p) == 4:
+        p[0] = [p[2]] + p[3]
+    else:
+        p[0] = []
 
 def p_param_list(p):
     """param_list : param_list COMMA param
@@ -133,16 +158,17 @@ def p_variable_list(p):
         p[0] = [p[1]]
 
 def p_assignment_statement(p):
-    """assignment_statement : IDENTIFIER ASSIGN expression SEMICOLON"""
-    p[0] = ('assign', p[1], p[3])
+    """assignment_statement : IDENTIFIER ASSIGN expression SEMICOLON
+                            | expression DOT IDENTIFIER ASSIGN expression SEMICOLON"""
+    if len(p) == 5:
+        p[0] = ("assign", p[1], p[3])
+    else:
+        p[0] = ("field_assign", p[1], p[3], p[5])
 
 def p_if_statement(p):
-    """if_statement : IF LEFT_PAREN expression RIGHT_PAREN LEFT_BRACE statement_list RIGHT_BRACE ELSE LEFT_BRACE statement_list RIGHT_BRACE
-                    | IF LEFT_PAREN expression RIGHT_PAREN LEFT_BRACE statement_list RIGHT_BRACE"""
-    if len(p) == 12:
-        p[0] = ('if_else', p[3], p[6], p[10])
-    else:
-        p[0] = ('if', p[3], p[6])
+    """if_statement : IF LEFT_PAREN expression RIGHT_PAREN LEFT_BRACE statement_list RIGHT_BRACE ELSE LEFT_BRACE statement_list RIGHT_BRACE"""
+    # Spec §4.6: if always requires an else branch.
+    p[0] = ('if_else', p[3], p[6], p[10])
 
 def p_while_statement(p):
     """while_statement : WHILE LEFT_PAREN expression RIGHT_PAREN LEFT_BRACE statement_list RIGHT_BRACE"""
@@ -218,36 +244,72 @@ def p_primary_expression(p):
                           | expression DOT IDENTIFIER
                           | LEFT_PAREN expression RIGHT_PAREN"""
     if len(p) == 2:
-        p[0] = ('primary', p[1])
+        # Tag literals vs identifiers so later phases can tell them apart
+        # (lexer strips quotes from STRING_LITERAL values).
+        tok_type = p.slice[1].type
+        if tok_type == "INTEGER_LITERAL":
+            p[0] = ("int_lit", p[1])
+        elif tok_type == "STRING_LITERAL":
+            p[0] = ("str_lit", p[1])
+        elif tok_type == "IDENTIFIER":
+            p[0] = ("var", p[1])
+        elif tok_type == "THIS":
+            p[0] = ("this",)
+        elif tok_type == "SUPER":
+            p[0] = ("super",)
+        else:
+            p[0] = ("primary", p[1])
     elif len(p) == 3:
-        p[0] = ('new', p[2])
-    elif len(p) == 5 and p[1] == '(':
-        p[0] = ('cast', p[2], p[4])
-    elif len(p) == 5 and p[2] == '(':
-        p[0] = ('function_call_expr', p[1], p[3])
-    elif len(p) == 7 and p[2] == '.':
-        p[0] = ('method_call_expr', p[1], p[3], p[5])
-    elif len(p) == 4 and p[2] == '.':
-        p[0] = ('field_access', p[1], p[3])
-    elif len(p) == 4 and p[1] == '(':
+        p[0] = ("new", p[2])
+    elif len(p) == 5 and p[1] == "(":
+        p[0] = ("cast", p[2], p[4])
+    elif len(p) == 5 and p[2] == "(":
+        p[0] = ("function_call_expr", p[1], p[3])
+    elif len(p) == 7 and p[2] == ".":
+        p[0] = ("method_call_expr", p[1], p[3], p[5])
+    elif len(p) == 4 and p[2] == ".":
+        p[0] = ("field_access", p[1], p[3])
+    elif len(p) == 4 and p[1] == "(":
         p[0] = p[2]
 
 def p_empty(p):
     """empty :"""
     p[0] = None
 
+# Set by p_error during the last parse()
+syntax_error = False
+
 def p_error(p):
+    global syntax_error
+    syntax_error = True
     if p:
-        print(f"Syntax error at '{p.value}' on line {p.lineno}")
+        print(
+            f"Syntax error at '{p.value}' on line {p.lineno}",
+            file=sys.stderr,
+        )
     else:
-        print("Syntax error at EOF")
+        print("Syntax error at EOF", file=sys.stderr)
 
 # Build the parser
-parser = yacc.yacc()
+parser = yacc.yacc(debug=False, write_tables=True)
 
 def parse(input_text):
-    """Parse input text and return AST"""
-    return parser.parse(input_text, lexer=lexer)
+    """Parse input text and return AST.
+
+    Sets module-level syntax_error if the parse failed.
+    """
+    global syntax_error
+    syntax_error = False
+    lexer.lineno = 1
+    ast = parser.parse(input_text, lexer=lexer)
+    if ast is None:
+        syntax_error = True
+    return ast
+
+
+def had_syntax_error():
+    """Return True if the last parse() call hit a syntax error."""
+    return syntax_error
 
 if __name__ == "__main__":
     # Test the parser with VYPlanguage example

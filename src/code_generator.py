@@ -1,6 +1,6 @@
 """
-Code Generator for VYP Language
-Generates target code from intermediate representation
+VYPa 2025 - VYPlanguage Compiler
+Authors: AUTHOR_NAME_1 (xlogin01), AUTHOR_NAME_2 (xlogin02)
 """
 
 from typing import List

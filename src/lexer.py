@@ -1,7 +1,10 @@
 """
-Lexical Analyzer for VYPlanguage
-Uses PLY lex for tokenization
+VYPa 2025 - VYPlanguage Compiler
+Authors: AUTHOR_NAME_1 (xlogin01), AUTHOR_NAME_2 (xlogin02)
 """
+
+import sys
+from typing import Optional
 
 import ply.lex as lex
 
@@ -20,7 +23,7 @@ reserved = {
     'while': 'WHILE',
 }
 
-# Token names
+# Token names (comments are discarded in t_COMMENT / t_BLOCK_COMMENT and are not tokens)
 tokens = [
     # Identifiers and literals
     'IDENTIFIER', 'INTEGER_LITERAL', 'STRING_LITERAL',
@@ -33,9 +36,6 @@ tokens = [
     # Delimiters
     'LEFT_PAREN', 'RIGHT_PAREN', 'LEFT_BRACE', 'RIGHT_BRACE',
     'SEMICOLON', 'COMMA', 'DOT', 'COLON',
-    
-    # Comments
-    'COMMENT', 'BLOCK_COMMENT',
 ] + list(reserved.values())
 
 # Token regex patterns
@@ -69,17 +69,88 @@ def t_IDENTIFIER(t):
 
 def t_INTEGER_LITERAL(t):
     r'\d+'
-    t.value = int(t.value)
+    raw = t.value
+    # Spec: [0-9]+ without superfluous leading zeros
+    if len(raw) > 1 and raw[0] == "0":
+        print(
+            f"Lexical error: superfluous leading zero in integer '{raw}' "
+            f"at line {t.lineno}",
+            file=sys.stderr,
+        )
+        t.lexer.lex_error = True
+        return None
+    t.value = int(raw)
     return t
+
+
+def _decode_string_literal(raw: str, lineno: int, lexer) -> Optional[str]:
+    """Decode VYPlanguage string body; return None on lexical error."""
+    out = []
+    i = 0
+    n = len(raw)
+    while i < n:
+        ch = raw[i]
+        if ch != "\\":
+            if ord(ch) < 32:
+                print(
+                    f"Lexical error: non-printable character in string at line {lineno}",
+                    file=sys.stderr,
+                )
+                lexer.lex_error = True
+                return None
+            out.append(ch)
+            i += 1
+            continue
+        if i + 1 >= n:
+            print(
+                f"Lexical error: trailing backslash in string at line {lineno}",
+                file=sys.stderr,
+            )
+            lexer.lex_error = True
+            return None
+        esc = raw[i + 1]
+        if esc == "n":
+            out.append("\n")
+            i += 2
+        elif esc == "t":
+            out.append("\t")
+            i += 2
+        elif esc == "\\":
+            out.append("\\")
+            i += 2
+        elif esc == '"':
+            out.append('"')
+            i += 2
+        elif esc == "x":
+            hexdigits = raw[i + 2 : i + 8]
+            if len(hexdigits) != 6 or any(
+                c not in "0123456789abcdefABCDEF" for c in hexdigits
+            ):
+                print(
+                    f"Lexical error: invalid \\xhhhhhh escape at line {lineno}",
+                    file=sys.stderr,
+                )
+                lexer.lex_error = True
+                return None
+            out.append(chr(int(hexdigits, 16)))
+            i += 8
+        else:
+            print(
+                f"Lexical error: invalid escape '\\{esc}' at line {lineno}",
+                file=sys.stderr,
+            )
+            lexer.lex_error = True
+            return None
+    return "".join(out)
+
 
 def t_STRING_LITERAL(t):
     r'"(?:[^"\\]|\\.)*"'
-    # Handle escape sequences: \n, \t, \\, \"
-    t.value = t.value[1:-1]  # Remove quotes
-    t.value = t.value.replace('\\n', '\n')
-    t.value = t.value.replace('\\t', '\t')
-    t.value = t.value.replace('\\\\', '\\')
-    t.value = t.value.replace('\\"', '"')
+    body = t.value[1:-1]
+    decoded = _decode_string_literal(body, t.lineno, t.lexer)
+    if decoded is None:
+        return None
+    t.value = decoded
     return t
 
 # Handle comments
@@ -99,14 +170,24 @@ def t_newline(t):
     t.lexer.lineno += len(t.value)
 
 def t_error(t):
-    print(f"Illegal character '{t.value[0]}' at line {t.lineno}")
+    print(
+        f"Lexical error: illegal character '{t.value[0]}' at line {t.lineno}",
+        file=sys.stderr,
+    )
+    t.lexer.lex_error = True
     t.lexer.skip(1)
 
 # Build the lexer
 lexer = lex.lex()
+lexer.lex_error = False
 
 def tokenize(input_text):
-    """Tokenize input text and return list of tokens"""
+    """Tokenize input text and return list of tokens.
+
+    Sets lexer.lex_error if any illegal character was found.
+    """
+    lexer.lex_error = False
+    lexer.lineno = 1
     lexer.input(input_text)
     tokens = []
     while True:
@@ -115,6 +196,11 @@ def tokenize(input_text):
             break
         tokens.append(tok)
     return tokens
+
+
+def had_lexical_error():
+    """Return True if the last tokenize() call hit a lexical error."""
+    return bool(getattr(lexer, "lex_error", False))
 
 if __name__ == "__main__":
     # Test the lexer with VYPlanguage example
