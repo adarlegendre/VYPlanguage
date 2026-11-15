@@ -1,0 +1,2 @@
+class A : Nope { }
+void main(void) {}

@@ -131,6 +131,12 @@ SET $BP, [$SP]
 SUBI $SP, $SP, 1
 SUBI $SP, $SP, 1
 RETURN [$SP+1]
+SET [$BP-2], 0
+SET $SP, $BP
+SET $BP, [$SP]
+SUBI $SP, $SP, 1
+SUBI $SP, $SP, 1
+RETURN [$SP+1]
 
 LABEL Object:toString
 INT2STRING $AX, [$SP]

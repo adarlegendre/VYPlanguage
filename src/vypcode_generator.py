@@ -219,22 +219,20 @@ class VYPcodeGenerator:
             self._emit("SET [$SP], 0")
 
         i = start + 1
-        saw_return = False
         while i < len(instructions) and instructions[i].type != IRType.FUNCTION_DEF:
-            if instructions[i].type == IRType.RETURN:
-                saw_return = True
             self._update_types_from_ins(instructions[i])
             self._generate_instruction(instructions[i])
             i += 1
 
-        if not saw_return:
-            if self.return_type == "void":
-                self._emit_epilogue(None)
-            elif self.return_type == "string":
-                self._materialize_string("", "$AX")
-                self._emit_epilogue("$AX")
-            else:
-                self._emit_epilogue("0")
+        # Spec §4.6: falling off the end returns a type default (0 / "" / null).
+        # Always emit this epilogue so paths without an explicit return still exit.
+        if self.return_type == "void":
+            self._emit_epilogue(None)
+        elif self.return_type == "string":
+            self._materialize_string("", "$AX")
+            self._emit_epilogue("$AX")
+        else:
+            self._emit_epilogue("0")
 
         self._emit()
         self.current_func = None

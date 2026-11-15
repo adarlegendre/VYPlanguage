@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VYPa — Syntactic Analysis</title>
+    <link rel="stylesheet" href="styles.css?v=21" />
+  </head>
+  <body>
+    <header class="chrome" aria-label="Presentation controls">
+      <button type="button" id="prev">Prev</button>
+      <span class="chrome__progress" id="progress">1 / 10</span>
+      <button type="button" id="next">Next</button>
+    </header>
+
+    <div class="deck">
+      <!-- 1 -->
+      <section class="slide slide--title is-active" data-title="Title">
+        <div class="pageno"></div>
+        <h1>Syntactic Analysis<br />of VYPlanguage</h1>
+        <p class="lead">LALR(1) parser · PLY Yacc</p>
+      </section>
+
+      <!-- 2 -->
+      <section class="slide" data-title="Overview">
+        <div class="pageno"></div>
+        <div class="titlebar">Overview</div>
+        <div class="diag-frame">
+          <svg class="diag" viewBox="0 0 780 280" aria-label="Talk roadmap">
+            <defs>
+              <marker id="arr" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto">
+                <path d="M0,1 L10,5 L0,9 Z" fill="#000"/>
+              </marker>
+            </defs>
+            <!-- numbered cards -->
+            <rect class="node node-cyan" x="30" y="30" width="340" height="90" rx="4"/>
+            <circle class="num" cx="70" cy="75" r="22"/><circle class="num-fill" cx="70" cy="75" r="17"/>
+            <text class="t-title" x="70" y="81" text-anchor="middle" font-size="18">1</text>
+            <text class="t-title" x="220" y="68" text-anchor="middle" font-size="20">Grammar</text>
+            <text class="t-sub" x="220" y="94" text-anchor="middle" font-size="15">CFG · classes · examples</text>
+
+            <rect class="node node-purple" x="410" y="30" width="340" height="90" rx="4"/>
+            <circle class="num" cx="450" cy="75" r="22"/><circle class="num-fill" cx="450" cy="75" r="17"/>
+            <text class="t-title" x="450" y="81" text-anchor="middle" font-size="18">2</text>
+            <text class="t-title" x="600" y="68" text-anchor="middle" font-size="20">Tools</text>
+            <text class="t-sub" x="600" y="94" text-anchor="middle" font-size="15">PLY · parser.py · parsetab.py</text>
+
+            <path class="edge" d="M200 120 V150" fill="none" marker-end="url(#arr)"/>
+            <path class="edge" d="M580 120 V150" fill="none" marker-end="url(#arr)"/>
+
+            <rect class="node node-white" x="30" y="150" width="340" height="90" rx="4"/>
+            <circle class="num" cx="70" cy="195" r="22"/><circle class="num-fill" cx="70" cy="195" r="17"/>
+            <text class="t-title" x="70" y="201" text-anchor="middle" font-size="18">3</text>
+            <text class="t-title" x="220" y="188" text-anchor="middle" font-size="20">Process</text>
+            <text class="t-sub" x="220" y="214" text-anchor="middle" font-size="15">shift–reduce · AST on reduce</text>
+
+            <rect class="node node-soft" x="410" y="150" width="340" height="90" rx="4"/>
+            <circle class="num" cx="450" cy="195" r="22"/><circle class="num-fill" cx="450" cy="195" r="17"/>
+            <text class="t-title" x="450" y="201" text-anchor="middle" font-size="18">4</text>
+            <text class="t-title" x="600" y="188" text-anchor="middle" font-size="20">Limits</text>
+            <text class="t-sub" x="600" y="214" text-anchor="middle" font-size="15">merge example · hard cases</text>
+          </svg>
+        </div>
+      </section>
+
+      <!-- 3 -->
+      <section class="slide" data-title="Grammar">
+        <div class="pageno"></div>
+        <div class="titlebar">Grammar — CFG</div>
+        <div class="cols fill">
+          <div class="box box--cyan stack">
+            <p class="sec">Definition</p>
+            <p><span class="math">G = (N, T, P, S)</span></p>
+            <p><span class="nt">N</span> nonterminals</p>
+            <p><span class="tm">T</span> terminals</p>
+            <p><span class="nt">P</span> productions</p>
+            <p><span class="nt">S</span> = <span class="nt">program</span></p>
+          </div>
+          <div class="box box--white stack">
+            <p class="sec">Core productions</p>
+            <p><span class="nt">program</span> → <span class="nt">defs</span></p>
+            <p><span class="nt">defs</span> → <span class="nt">defs</span> <span class="nt">def</span> | <span class="nt">def</span></p>
+            <p><span class="nt">def</span> → <span class="nt">function</span> | <span class="nt">class</span></p>
+            <hr class="rule" />
+            <p class="sec">Example</p>
+            <div class="ex"><span class="tm">void</span> main(<span class="tm">void</span>) {<br>
+&nbsp;&nbsp;<span class="tm">int</span> a;<br>
+&nbsp;&nbsp;a = 1 + 2;<br>
+}</div>
+          </div>
+        </div>
+        <p class="note">Left recursion in <span class="nt">defs</span> is intentional (LR-friendly).</p>
+      </section>
+
+      <!-- 4 -->
+      <section class="slide" data-title="Classes">
+        <div class="pageno"></div>
+        <div class="titlebar">Productions — Classes</div>
+        <div class="diag-frame">
+          <svg class="diag" viewBox="0 0 780 250" aria-label="Class productions">
+            <defs>
+              <marker id="arrCl" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto">
+                <path d="M0,1 L10,5 L0,9 Z" fill="#000"/>
+              </marker>
+            </defs>
+            <!-- edges under nodes -->
+            <path class="edge" d="M270 68 V84 H155 V100" fill="none" marker-end="url(#arrCl)"/>
+            <path class="edge" d="M390 68 V100" fill="none" marker-end="url(#arrCl)"/>
+            <path class="edge" d="M510 68 V84 H625 V100" fill="none" marker-end="url(#arrCl)"/>
+
+            <rect class="node node-purple" x="190" y="16" width="400" height="52" rx="4"/>
+            <text class="t-title" x="390" y="40" text-anchor="middle" font-size="18">class_def</text>
+            <text class="t-mono" x="390" y="58" text-anchor="middle" font-size="14">class Id : Parent { members }</text>
+
+            <rect class="node node-cyan" x="55" y="100" width="200" height="70" rx="4"/>
+            <text class="t-title" x="155" y="130" text-anchor="middle" font-size="17">field</text>
+            <text class="t-mono" x="155" y="152" text-anchor="middle">type id ;</text>
+
+            <rect class="node node-white" x="290" y="100" width="200" height="70" rx="4"/>
+            <text class="t-title" x="390" y="130" text-anchor="middle" font-size="17">constructor</text>
+            <text class="t-mono" x="390" y="152" text-anchor="middle">Id (params) { }</text>
+
+            <rect class="node node-soft" x="525" y="100" width="200" height="70" rx="4"/>
+            <text class="t-title" x="625" y="130" text-anchor="middle" font-size="17">method</text>
+            <text class="t-mono" x="625" y="152" text-anchor="middle">type id (…) { }</text>
+
+            <rect class="node node-cyan" x="55" y="190" width="340" height="48" rx="4"/>
+            <text class="t-sub" x="225" y="220" text-anchor="middle" font-size="14">primary → this | super | new id | expr . id</text>
+
+            <rect class="node node-white" x="415" y="190" width="310" height="48" rx="4"/>
+            <text class="t-mono" x="570" y="220" text-anchor="middle" font-size="13">new Rectangle;  s.toString();</text>
+          </svg>
+        </div>
+      </section>
+
+      <!-- 5 -->
+      <section class="slide" data-title="Tools">
+        <div class="pageno"></div>
+        <div class="titlebar">Tools</div>
+        <div class="diag-frame">
+          <svg class="diag" viewBox="0 0 780 290" aria-label="Tools and pipeline">
+            <defs>
+              <marker id="arrT" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto">
+                <path d="M0,1 L10,5 L0,9 Z" fill="#000"/>
+              </marker>
+            </defs>
+            <path class="edge" d="M190 60 H230" fill="none" marker-end="url(#arrT)"/>
+            <path class="edge" d="M400 60 H440" fill="none" marker-end="url(#arrT)"/>
+            <path class="edge" d="M610 60 H650" fill="none" marker-end="url(#arrT)"/>
+            <path class="edge" d="M190 200 H230" fill="none" marker-end="url(#arrT)"/>
+            <path class="edge" d="M400 200 H440" fill="none" marker-end="url(#arrT)"/>
+            <path class="edge" d="M610 200 H650" fill="none" marker-end="url(#arrT)"/>
+
+            <rect class="node node-cyan" x="20" y="20" width="170" height="80" rx="4"/>
+            <text class="t-title" x="105" y="52" text-anchor="middle" font-size="17">PLY Lex</text>
+            <text class="t-sub" x="105" y="76" text-anchor="middle">lexer.py</text>
+
+            <rect class="node node-purple" x="230" y="20" width="170" height="80" rx="4"/>
+            <text class="t-title" x="315" y="52" text-anchor="middle" font-size="17">PLY Yacc</text>
+            <text class="t-sub" x="315" y="76" text-anchor="middle">yacc.yacc(…)</text>
+
+            <rect class="node node-white" x="440" y="20" width="170" height="80" rx="4"/>
+            <text class="t-title" x="525" y="52" text-anchor="middle" font-size="17">parsetab.py</text>
+            <text class="t-sub" x="525" y="76" text-anchor="middle">ACTION / GOTO</text>
+
+            <rect class="node node-cyan" x="650" y="20" width="110" height="80" rx="4"/>
+            <text class="t-title" x="705" y="52" text-anchor="middle" font-size="16">AST</text>
+            <text class="t-sub" x="705" y="76" text-anchor="middle">p[0]</text>
+
+            <rect class="node node-soft" x="20" y="140" width="170" height="120" rx="4"/>
+            <text class="t-cap" x="105" y="168" text-anchor="middle">STEP 1 · WE</text>
+            <text class="t-title" x="105" y="200" text-anchor="middle" font-size="16">write CFG</text>
+            <text class="t-sub" x="105" y="228" text-anchor="middle">p_* in parser.py</text>
+
+            <rect class="node node-purple" x="230" y="140" width="170" height="120" rx="4"/>
+            <text class="t-cap" x="315" y="168" text-anchor="middle">STEP 2 · PLY</text>
+            <text class="t-title" x="315" y="200" text-anchor="middle" font-size="16">build LALR</text>
+            <text class="t-sub" x="315" y="228" text-anchor="middle">merge look-aheads</text>
+
+            <rect class="node node-white" x="440" y="140" width="170" height="120" rx="4"/>
+            <text class="t-cap" x="525" y="168" text-anchor="middle">STEP 3 · TABLES</text>
+            <text class="t-title" x="525" y="200" text-anchor="middle" font-size="16">emit tables</text>
+            <text class="t-sub" x="525" y="228" text-anchor="middle">parsetab.py</text>
+
+            <rect class="node node-cyan" x="650" y="140" width="110" height="120" rx="4"/>
+            <text class="t-cap" x="705" y="168" text-anchor="middle">STEP 4</text>
+            <text class="t-title" x="705" y="200" text-anchor="middle" font-size="16">parse</text>
+            <text class="t-sub" x="705" y="228" text-anchor="middle">runtime</text>
+          </svg>
+        </div>
+      </section>
+
+      <!-- 6 -->
+      <section class="slide" data-title="Process">
+        <div class="pageno"></div>
+        <div class="titlebar">Process — Shift–Reduce</div>
+        <div class="diag-frame">
+          <svg class="diag" viewBox="0 0 780 310" aria-label="Shift reduce flowchart">
+            <defs>
+              <marker id="arrSR" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto">
+                <path d="M0,1 L10,5 L0,9 Z" fill="#000"/>
+              </marker>
+              <marker id="arrSRb" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto">
+                <path d="M0,1 L10,5 L0,9 Z" fill="#0000cc"/>
+              </marker>
+            </defs>
+
+            <!-- edges under shapes; endpoints sit on box/diamond borders -->
+            <path class="edge" d="M390 58 V78" fill="none" marker-end="url(#arrSR)"/>
+            <path class="edge" d="M300 128 H140 V198" fill="none" marker-end="url(#arrSR)"/>
+            <path class="edge" d="M390 178 V198" fill="none" marker-end="url(#arrSR)"/>
+            <path class="edge" d="M480 128 H640 V198" fill="none" marker-end="url(#arrSR)"/>
+            <path d="M140 268 V292 H28 V37 H255" fill="none" stroke="#0000cc" stroke-width="3" stroke-dasharray="8 5" marker-end="url(#arrSRb)"/>
+            <path d="M390 268 V292 H28" fill="none" stroke="#0000cc" stroke-width="3" stroke-dasharray="8 5"/>
+
+            <text class="t-red" x="210" y="118" text-anchor="middle" font-size="15">shift</text>
+            <text class="t-red" x="412" y="192" font-size="15">reduce</text>
+            <text class="t-red" x="560" y="118" text-anchor="middle" font-size="15">halt</text>
+            <text class="t-blue" x="155" y="286" font-size="14">loop · next token</text>
+
+            <rect class="node node-cyan" x="255" y="16" width="270" height="42" rx="4"/>
+            <text class="t-title" x="390" y="43" text-anchor="middle" font-size="18">ACTION[state, token]</text>
+
+            <path class="diamond" d="M390 78 L480 128 L390 178 L300 128 Z"/>
+            <text class="t-title" x="390" y="134" text-anchor="middle" font-size="18">act?</text>
+
+            <rect class="node node-white" x="40" y="198" width="200" height="70" rx="4"/>
+            <text class="t-title" x="140" y="228" text-anchor="middle" font-size="18">SHIFT</text>
+            <text class="t-sub" x="140" y="252" text-anchor="middle" font-size="14">push token + state</text>
+
+            <rect class="node node-cyan" x="290" y="198" width="200" height="70" rx="4"/>
+            <text class="t-title" x="390" y="228" text-anchor="middle" font-size="18">REDUCE</text>
+            <text class="t-sub" x="390" y="252" text-anchor="middle" font-size="14">p[0] AST · GOTO</text>
+
+            <rect class="node node-white" x="540" y="198" width="200" height="70" rx="4"/>
+            <text class="t-title" x="640" y="228" text-anchor="middle" font-size="17">ACCEPT / ERR</text>
+            <text class="t-sub" x="640" y="252" text-anchor="middle" font-size="14">done · exit 12</text>
+          </svg>
+        </div>
+        <p class="note">PLY runs the loop. We write productions + reduce actions only.</p>
+      </section>
+
+      <!-- 7 -->
+      <section class="slide" data-title="Merge">
+        <div class="pageno"></div>
+        <div class="titlebar">Example — LALR Merge</div>
+        <div class="diag-frame">
+          <svg class="diag" viewBox="0 0 780 275" aria-label="LALR merge">
+            <defs>
+              <marker id="arrM" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto">
+                <path d="M0,1 L10,5 L0,9 Z" fill="#000"/>
+              </marker>
+            </defs>
+            <text class="t-cap" x="160" y="22" text-anchor="middle" font-size="13">SITUATION A</text>
+            <text class="t-cap" x="430" y="22" text-anchor="middle" font-size="13">SITUATION B</text>
+
+            <rect class="node node-cyan" x="40" y="34" width="240" height="90" rx="4"/>
+            <text class="t-mono" x="160" y="68" text-anchor="middle" font-size="16">x = a + b ;</text>
+            <text class="t-sub" x="160" y="94" text-anchor="middle">next token</text>
+            <text class="t-red" x="160" y="114" text-anchor="middle" font-size="22">;</text>
+
+            <rect class="node node-white" x="310" y="34" width="240" height="90" rx="4"/>
+            <text class="t-mono" x="430" y="68" text-anchor="middle" font-size="16">print(a + b)</text>
+            <text class="t-sub" x="430" y="94" text-anchor="middle">next token</text>
+            <text class="t-red" x="430" y="114" text-anchor="middle" font-size="22">)</text>
+
+            <rect class="node node-soft" x="580" y="48" width="170" height="62" rx="4"/>
+            <text class="t-title" x="665" y="74" text-anchor="middle" font-size="15">same stack</text>
+            <text class="t-sub" x="665" y="96" text-anchor="middle">after E + E</text>
+
+            <!-- boxes bottom y=124; merge box top y=175 -->
+            <path class="edge" d="M160 124 V150" fill="none"/>
+            <path class="edge" d="M430 124 V150" fill="none"/>
+            <path class="edge" d="M160 150 H430" fill="none"/>
+            <path class="edge" d="M295 150 V175" fill="none" marker-end="url(#arrM)"/>
+
+            <rect class="node node-purple" x="120" y="175" width="350" height="70" rx="4"/>
+            <text class="t-title" x="295" y="206" text-anchor="middle" font-size="18">ONE LALR state</text>
+            <text class="t-sub" x="295" y="230" text-anchor="middle" font-size="14">reduce when next ∈ { ; , ) }</text>
+          </svg>
+        </div>
+        <p class="note"><b>Merge</b> = one table row. LR(1) would keep two. PLY writes the merged row in <span class="mono">parsetab.py</span>.</p>
+      </section>
+
+      <!-- 8 -->
+      <section class="slide" data-title="AST">
+        <div class="pageno"></div>
+        <div class="titlebar">AST — Built on Reduce</div>
+        <div class="diag-frame">
+          <svg class="diag" viewBox="0 0 780 200" aria-label="Reduce builds AST">
+            <defs>
+              <marker id="arrA" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto">
+                <path d="M0,1 L10,5 L0,9 Z" fill="#000"/>
+              </marker>
+            </defs>
+            <path class="edge" d="M230 90 H280" fill="none" marker-end="url(#arrA)"/>
+            <path class="edge" d="M500 90 H550" fill="none" marker-end="url(#arrA)"/>
+
+            <rect class="node node-cyan" x="30" y="40" width="200" height="100" rx="4"/>
+            <text class="t-title" x="130" y="78" text-anchor="middle" font-size="17">stack values</text>
+            <text class="t-mono" x="130" y="108" text-anchor="middle">p[1], p[2], p[3]</text>
+
+            <rect class="node node-purple" x="280" y="40" width="220" height="100" rx="4"/>
+            <text class="t-title" x="390" y="78" text-anchor="middle" font-size="17">reduce E + E</text>
+            <text class="t-sub" x="390" y="108" text-anchor="middle">production fires</text>
+
+            <rect class="node node-white" x="550" y="40" width="200" height="100" rx="4"/>
+            <text class="t-title" x="650" y="78" text-anchor="middle" font-size="17">p[0] = AST</text>
+            <text class="t-mono" x="650" y="108" text-anchor="middle">('binary', …)</text>
+          </svg>
+        </div>
+        <div class="cols">
+          <div class="box box--cyan">
+            <p><span class="math">A.val = f(X₁.val, …)</span> on every reduce</p>
+          </div>
+          <pre class="code"><span class="k">def</span> p_binary_expression(p):
+    <span class="s">"""E : E PLUS E"""</span>
+    p[0] = (<span class="s">'binary'</span>, p[2], p[1], p[3])</pre>
+        </div>
+      </section>
+
+      <!-- 9 -->
+      <section class="slide" data-title="Limits">
+        <div class="pageno"></div>
+        <div class="titlebar">Limits — Beyond LALR</div>
+        <div class="cols-3 fill">
+          <div class="box box--cyan stack">
+            <h3>1 · Use before define</h3>
+            <div class="ex">func(1);<br>void func(int a){…}</div>
+            <p>CFG cannot require “declared”. Fix: <b>two semantic passes</b>.</p>
+          </div>
+          <div class="box box--white stack">
+            <h3>2 · Same prefix</h3>
+            <div class="ex">(Rectangle)x<br>int x; / int f(){</div>
+            <p>Lexer <span class="mono">TYPE_ID</span> + extra productions → no conflict.</p>
+          </div>
+          <div class="box box--cyan stack">
+            <h3>3 · Ambiguous ops</h3>
+            <div class="ex">a + b * 2</div>
+            <p>Yacc <span class="mono">precedence</span> fills ACTION.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 10 -->
+      <section class="slide" data-title="Summary">
+        <div class="pageno"></div>
+        <div class="titlebar">Summary</div>
+        <div class="diag-frame">
+          <svg class="diag" viewBox="0 0 780 220" aria-label="Summary">
+            <defs>
+              <marker id="arrS" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto">
+                <path d="M0,1 L10,5 L0,9 Z" fill="#000"/>
+              </marker>
+            </defs>
+            <path class="edge" d="M180 100 H220" fill="none" marker-end="url(#arrS)"/>
+            <path class="edge" d="M370 100 H410" fill="none" marker-end="url(#arrS)"/>
+            <path class="edge" d="M560 100 H600" fill="none" marker-end="url(#arrS)"/>
+
+            <rect class="node node-cyan" x="30" y="50" width="150" height="100" rx="4"/>
+            <text class="t-title" x="105" y="90" text-anchor="middle" font-size="18">CFG</text>
+            <text class="t-sub" x="105" y="118" text-anchor="middle">parser.py</text>
+
+            <rect class="node node-purple" x="220" y="50" width="150" height="100" rx="4"/>
+            <text class="t-title" x="295" y="90" text-anchor="middle" font-size="18">LALR</text>
+            <text class="t-sub" x="295" y="118" text-anchor="middle">yacc.yacc</text>
+
+            <rect class="node node-white" x="410" y="50" width="150" height="100" rx="4"/>
+            <text class="t-title" x="485" y="90" text-anchor="middle" font-size="18">tables</text>
+            <text class="t-sub" x="485" y="118" text-anchor="middle">parsetab.py</text>
+
+            <rect class="node node-cyan" x="600" y="50" width="150" height="100" rx="4"/>
+            <text class="t-title" x="675" y="90" text-anchor="middle" font-size="18">AST</text>
+            <text class="t-sub" x="675" y="118" text-anchor="middle">p[0]</text>
+          </svg>
+        </div>
+        <p class="note">Write grammar → PLY builds tables → shift–reduce builds AST in <span class="mono">p[0]</span>.</p>
+      </section>
+    </div>
+    <script src="slides.js"></script>
+  </body>
+</html>

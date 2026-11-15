@@ -1,0 +1,2 @@
+class A : Object { void A(int x) { } }
+void main(void) {}

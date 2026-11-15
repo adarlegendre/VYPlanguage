@@ -1,0 +1,4 @@
+void main(void) {
+  Object o; o = new Object;
+  print(o.toString(), o.getClass());
+}

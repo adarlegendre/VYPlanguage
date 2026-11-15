@@ -1,0 +1,4 @@
+string g(int x) {
+  if (x) { return "a"; } else { }
+}
+void main(void) { print(g(0), "|"); }

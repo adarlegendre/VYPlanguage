@@ -26,7 +26,8 @@ reserved = {
 # Token names (comments are discarded in t_COMMENT / t_BLOCK_COMMENT and are not tokens)
 tokens = [
     # Identifiers and literals
-    'IDENTIFIER', 'INTEGER_LITERAL', 'STRING_LITERAL',
+    # TYPE_ID = class name (incl. Object); disambiguates (Type)cast vs (expr)
+    'IDENTIFIER', 'TYPE_ID', 'INTEGER_LITERAL', 'STRING_LITERAL',
     
     # Operators
     'ASSIGN', 'PLUS', 'MINUS', 'MULTIPLY', 'DIVIDE',
@@ -37,6 +38,9 @@ tokens = [
     'LEFT_PAREN', 'RIGHT_PAREN', 'LEFT_BRACE', 'RIGHT_BRACE',
     'SEMICOLON', 'COMMA', 'DOT', 'COLON',
 ] + list(reserved.values())
+
+# Class names visible for the current parse (Object + user classes).
+type_names = {"Object"}
 
 # Token regex patterns
 t_ASSIGN = r'='
@@ -64,8 +68,29 @@ t_COLON = r':'
 
 def t_IDENTIFIER(t):
     r'[a-zA-Z_][a-zA-Z0-9_]*'
-    t.type = reserved.get(t.value, 'IDENTIFIER')
+    if t.value in reserved:
+        t.type = reserved[t.value]
+    elif t.value in type_names:
+        t.type = "TYPE_ID"
+    else:
+        t.type = "IDENTIFIER"
     return t
+
+
+def set_type_names(names):
+    """Set class/type names recognized as TYPE_ID for the next tokenize/parse."""
+    global type_names
+    type_names = set(names) | {"Object"}
+
+
+def collect_class_names(text: str):
+    """Pre-scan source for 'class Id' declarations (spec: visible everywhere)."""
+    import re
+
+    names = {"Object"}
+    for match in re.finditer(r"\bclass\s+([A-Za-z_][A-Za-z0-9_]*)", text):
+        names.add(match.group(1))
+    return names
 
 def t_INTEGER_LITERAL(t):
     r'\d+'

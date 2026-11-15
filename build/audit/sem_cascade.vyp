@@ -1,0 +1,2 @@
+class A : Object { int x; int m(void) { return this.x; } }
+void main(void) { A a; a = new A; }

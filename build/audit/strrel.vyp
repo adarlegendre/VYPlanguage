@@ -1,0 +1,5 @@
+void main(void) {
+  string a; string b;
+  a = "ab"; b = "ac";
+  print(a < b, a == b, a != "ab");
+}

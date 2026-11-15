@@ -1,0 +1,7 @@
+void main(void) {
+  Object a; Object b;
+  a = new Object; b = a;
+  print(a == b);
+  b = new Object;
+  print(a == b);
+}

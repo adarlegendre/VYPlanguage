@@ -1,0 +1,551 @@
+/* VYPa lecture deck — high-contrast, diagram-first */
+
+:root {
+  --ink: #111;
+  --blue: #0000cc;
+  --red: #cc0000;
+  --purple: #cc99ff;
+  --cyan: #99e8ff;
+  --soft: #f4f4f4;
+  --line: #000;
+  --font: "Times New Roman", Times, "Liberation Serif", serif;
+  --mono: "Courier New", Courier, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #1e1e1e;
+  color: var(--ink);
+  font-family: var(--font);
+}
+
+.chrome {
+  position: fixed;
+  top: 10px;
+  right: 14px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chrome button {
+  font: 700 15px/1 var(--font);
+  padding: 7px 14px;
+  border: 2.5px solid #000;
+  background: var(--cyan);
+  cursor: pointer;
+}
+
+.chrome button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.chrome__progress {
+  display: inline-block;
+  font: 700 14px/1 var(--font);
+  padding: 7px 10px;
+  border: 2.5px solid #000;
+  background: #fff;
+  min-width: 4.2rem;
+  text-align: center;
+}
+
+.deck {
+  height: 100%;
+}
+
+.slide {
+  display: none;
+  position: relative;
+  width: min(100vw, calc(100vh * 1.414));
+  height: min(100vh, calc(100vw / 1.414));
+  margin: 0 auto;
+  padding: 1.7rem 2rem 1.2rem;
+  background: #fff;
+  overflow: hidden;
+}
+
+.slide.is-active {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.pageno {
+  position: absolute;
+  top: 0.35rem;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.titlebar {
+  margin: 0.15rem 0 0.1rem;
+  padding: 0.38rem 0.85rem;
+  background: var(--purple);
+  border: 3.5px solid #000;
+  font-size: clamp(1.55rem, 3vw, 2.15rem);
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.12;
+}
+
+.slide--title {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 1.1rem;
+  background: #fff;
+}
+
+.slide--title h1 {
+  margin: 0;
+  color: var(--blue);
+  font-size: clamp(2.8rem, 6.5vw, 4.3rem);
+  font-weight: 700;
+  line-height: 1.05;
+  text-shadow: 2px 2px 0 #dbe4ff;
+}
+
+.slide--title .lead {
+  margin: 0;
+  padding: 0.45rem 1.1rem;
+  border: 3.5px solid #000;
+  background: var(--cyan);
+  font-size: clamp(1.3rem, 2.5vw, 1.65rem);
+  font-weight: 700;
+}
+
+.cols.fill,
+.cols-3.fill {
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  height: 100%;
+}
+
+.rule {
+  border: 0;
+  border-top: 3px solid #000;
+  margin: 0.4rem 0;
+}
+
+.cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem 1rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.cols-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.7rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.box {
+  border: 3px solid #000;
+  padding: 0.55rem 0.75rem;
+}
+
+.box--cyan {
+  background: var(--cyan);
+}
+.box--purple {
+  background: var(--purple);
+}
+.box--white {
+  background: #fff;
+}
+.box--soft {
+  background: var(--soft);
+}
+
+.box h3 {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.15rem, 2vw, 1.35rem);
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.sec {
+  margin: 0 0 0.25rem;
+  color: var(--blue);
+  font-weight: 700;
+  font-size: clamp(1.1rem, 2vw, 1.28rem);
+}
+
+.io {
+  font-size: clamp(1.05rem, 1.8vw, 1.2rem);
+  font-weight: 700;
+}
+
+.math {
+  font-style: italic;
+}
+
+.label-red {
+  color: var(--red);
+  font-weight: 700;
+}
+
+.nt {
+  color: var(--blue);
+  font-style: italic;
+  font-weight: 700;
+}
+
+.tm {
+  color: var(--red);
+  font-weight: 700;
+}
+
+ul {
+  margin: 0.15rem 0 0;
+  padding-left: 1.25rem;
+}
+
+li {
+  margin: 0.28rem 0;
+  font-size: clamp(1.08rem, 1.9vw, 1.28rem);
+  line-height: 1.3;
+  font-weight: 700;
+}
+
+p {
+  margin: 0.2rem 0;
+  font-size: clamp(1.05rem, 1.85vw, 1.24rem);
+  line-height: 1.32;
+  font-weight: 700;
+}
+
+.note {
+  margin-top: auto;
+  padding: 0.45rem 0.7rem;
+  border: 3px solid #000;
+  background: var(--cyan);
+  font-size: clamp(1.02rem, 1.7vw, 1.18rem);
+  font-weight: 700;
+}
+
+.mono,
+code {
+  font-family: var(--mono);
+  font-size: 0.94em;
+}
+
+pre.code {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border: 3px solid #000;
+  background: #fff;
+  font-family: var(--mono);
+  font-size: clamp(0.95rem, 1.5vw, 1.08rem);
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: pre;
+  overflow: auto;
+}
+
+pre.code .k {
+  color: var(--blue);
+}
+pre.code .s {
+  color: var(--red);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: clamp(1rem, 1.7vw, 1.15rem);
+  font-weight: 700;
+}
+
+th,
+td {
+  border: 2.5px solid #000;
+  padding: 0.38rem 0.55rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: var(--purple);
+}
+
+.ex {
+  border: 3px solid #000;
+  background: #fff;
+  padding: 0.45rem 0.6rem;
+  font-family: var(--mono);
+  font-size: clamp(0.98rem, 1.55vw, 1.12rem);
+  font-weight: 700;
+  line-height: 1.38;
+}
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.65rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.tool {
+  border: 3px solid #000;
+  padding: 0.55rem 0.5rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.2rem;
+}
+
+.tool--cyan {
+  background: var(--cyan);
+}
+.tool--purple {
+  background: var(--purple);
+}
+.tool--white {
+  background: #fff;
+}
+
+.tool strong {
+  display: block;
+  color: var(--blue);
+  font-size: clamp(1.05rem, 1.8vw, 1.25rem);
+}
+
+.tool span {
+  font-size: clamp(0.92rem, 1.5vw, 1.05rem);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.agenda {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.45rem 0.85rem;
+  align-items: center;
+  flex: 1;
+  padding: 0.3rem 0.2rem;
+}
+
+.agenda__n {
+  width: 2.2rem;
+  height: 2.2rem;
+  border: 3px solid #000;
+  background: var(--purple);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 1.15rem;
+}
+
+.agenda__row {
+  border: 3px solid #000;
+  padding: 0.4rem 0.7rem;
+  font-size: clamp(1.1rem, 2vw, 1.35rem);
+  font-weight: 700;
+  background: #fff;
+}
+
+.agenda__row:nth-child(4n + 2) {
+  background: var(--cyan);
+}
+
+/* Diagrams */
+.diag-frame {
+  border: 3.5px solid #000;
+  background: #fafafa;
+  padding: 0.5rem 0.6rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+svg.diag {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  display: block;
+}
+
+.diag text {
+  font-family: var(--font);
+  fill: #111;
+}
+
+.diag .t-title {
+  font-size: 16px;
+  font-weight: 700;
+  fill: var(--blue);
+}
+
+.diag .t-sub {
+  font-size: 13px;
+  font-weight: 700;
+  fill: #222;
+}
+
+.diag .t-cap {
+  font-size: 12px;
+  font-weight: 700;
+  fill: #333;
+  letter-spacing: 0.03em;
+}
+
+.diag .t-red {
+  fill: var(--red);
+  font-weight: 700;
+}
+
+.diag .t-blue {
+  fill: var(--blue);
+  font-weight: 700;
+}
+
+.diag .t-mono {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  fill: #111;
+}
+
+.diag .node {
+  stroke: #000;
+  stroke-width: 2.8;
+}
+
+.diag .node-cyan {
+  fill: var(--cyan);
+}
+.diag .node-purple {
+  fill: var(--purple);
+}
+.diag .node-white {
+  fill: #fff;
+}
+.diag .node-soft {
+  fill: #eee;
+}
+
+.diag .band {
+  fill: rgba(0, 0, 0, 0.07);
+  stroke: none;
+}
+
+.diag .edge {
+  fill: none;
+  stroke: #000;
+  stroke-width: 2.6;
+}
+
+.diag .diamond {
+  stroke: #000;
+  stroke-width: 2.8;
+  fill: var(--purple);
+}
+
+.diag .num {
+  fill: #000;
+  stroke: #000;
+  stroke-width: 2.4;
+}
+
+.diag .num-fill {
+  fill: #fff;
+}
+
+.diag .rail {
+  fill: none;
+  stroke: #cfcfcf;
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.diag .rail-fg {
+  fill: none;
+  stroke: #000;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+
+.diag .pill {
+  stroke: #000;
+  stroke-width: 2.2;
+  fill: #fff;
+}
+
+.diag .pill-cyan {
+  fill: var(--cyan);
+}
+.diag .pill-purple {
+  fill: var(--purple);
+}
+
+@media (max-width: 900px) {
+  .cols,
+  .cols-3,
+  .tool-grid {
+    grid-template-columns: 1fr;
+  }
+  .slide {
+    width: 100vw;
+    height: 100vh;
+    overflow: auto;
+  }
+}
+
+@page {
+  size: A4 landscape;
+  margin: 8mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff;
+    height: auto;
+  }
+  .chrome {
+    display: none !important;
+  }
+  .slide {
+    display: flex !important;
+    flex-direction: column;
+    width: auto;
+    height: calc(210mm - 16mm);
+    page-break-after: always;
+    break-after: page;
+    overflow: hidden;
+  }
+  .slide:last-child {
+    page-break-after: auto;
+  }
+}

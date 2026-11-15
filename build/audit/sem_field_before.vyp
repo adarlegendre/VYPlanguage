@@ -1,0 +1,5 @@
+class A : Object {
+  int m(void) { return this.x; }
+  int x;
+}
+void main(void) {}

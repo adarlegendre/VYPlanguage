@@ -100,6 +100,10 @@ class IRGenerator:
         self.label_counter = 0
         self.var_types: Dict[str, str] = {}
         self.value_types: Dict[str, str] = {}  # temp/var name -> type
+        self.env_stack: List[Dict[str, str]] = [{}]
+        self.local_serial = 0
+        self.scoped_locals: List[str] = []
+        self.scoped_local_types: Dict[str, str] = {}
 
     def new_temp(self, typ: str = "int") -> str:
         self.temp_counter += 1
@@ -114,12 +118,40 @@ class IRGenerator:
     def add_instruction(self, instruction: IRInstruction):
         self.instructions.append(instruction)
 
+    def _push_scope(self):
+        self.env_stack.append({})
+
+    def _pop_scope(self):
+        if len(self.env_stack) > 1:
+            self.env_stack.pop()
+
+    def _declare_slot(self, name: str, typ: str) -> str:
+        """Allocate a unique frame slot for a local (supports shadowing)."""
+        self.local_serial += 1
+        unique = f"{name}${self.local_serial}"
+        self.env_stack[-1][name] = unique
+        self.scoped_locals.append(unique)
+        self.scoped_local_types[unique] = typ
+        self.var_types[unique] = typ
+        self.value_types[unique] = typ
+        return unique
+
+    def _resolve(self, name: str) -> str:
+        for scope in reversed(self.env_stack):
+            if name in scope:
+                return scope[name]
+        return name
+
     def generate_from_ast(self, ast) -> List[IRInstruction]:
         self.instructions = []
         self.temp_counter = 0
         self.label_counter = 0
         self.var_types = {}
         self.value_types = {}
+        self.env_stack = [{}]
+        self.local_serial = 0
+        self.scoped_locals = []
+        self.scoped_local_types = {}
         self.classes = build_class_model(ast) if ast else {}
         self.func_returns = dict(_BUILTIN_RETURNS)
         if ast and ast[0] == "program":
@@ -181,22 +213,22 @@ class IRGenerator:
         elif node_type == "var_def":
             var_type, var_list = node[1], node[2]
             for name in var_list:
-                self.var_types[name] = var_type
-                self.value_types[name] = var_type
+                slot = self._declare_slot(name, var_type)
                 if var_type == "string":
                     default = ("str_lit", "")
                 else:
                     default = ("int_lit", 0)
                 self.add_instruction(
-                    IRInstruction(IRType.ASSIGN, arg1=default, result=name)
+                    IRInstruction(IRType.ASSIGN, arg1=default, result=slot)
                 )
 
         elif node_type == "assign":
             var_name, expr = node[1], node[2]
+            slot = self._resolve(var_name)
             expr_result = self._generate_node(expr)
-            self.value_types[var_name] = self._type_of(expr_result)
+            self.value_types[slot] = self._type_of(expr_result)
             self.add_instruction(
-                IRInstruction(IRType.ASSIGN, arg1=expr_result, result=var_name)
+                IRInstruction(IRType.ASSIGN, arg1=expr_result, result=slot)
             )
 
         elif node_type == "field_assign":
@@ -340,7 +372,7 @@ class IRGenerator:
             return ("str_lit", node[1])
 
         elif node_type == "var":
-            return ("var", node[1])
+            return ("var", self._resolve(node[1]))
 
         elif node_type == "primary":
             return node[1]
@@ -398,11 +430,15 @@ class IRGenerator:
                     label=else_label,
                 )
             )
+            self._push_scope()
             self._generate_node(node[2])
+            self._pop_scope()
             self.add_instruction(IRInstruction(IRType.JUMP, label=end_label))
             self.add_instruction(IRInstruction(IRType.LABEL, label=else_label))
             if node_type == "if_else":
+                self._push_scope()
                 self._generate_node(node[3])
+                self._pop_scope()
             self.add_instruction(IRInstruction(IRType.LABEL, label=end_label))
 
         elif node_type == "while":
@@ -420,7 +456,9 @@ class IRGenerator:
                     label=end_label,
                 )
             )
+            self._push_scope()
             self._generate_node(body)
+            self._pop_scope()
             self.add_instruction(IRInstruction(IRType.JUMP, label=start_label))
             self.add_instruction(IRInstruction(IRType.LABEL, label=end_label))
 
@@ -434,7 +472,9 @@ class IRGenerator:
                 self.add_instruction(IRInstruction(IRType.RETURN))
 
         elif node_type == "block":
+            self._push_scope()
             self._generate_node(node[1])
+            self._pop_scope()
 
         else:
             for child in node[1:]:
@@ -443,51 +483,47 @@ class IRGenerator:
 
         return None
 
-    def _collect_locals(self, node, found=None):
-        if found is None:
-            found = []
+    def _precollect_scoped_locals(self, node):
+        """Walk body with the same scopes as codegen to size the frame."""
         if node is None:
-            return found
+            return
         if isinstance(node, list):
             for child in node:
-                self._collect_locals(child, found)
-            return found
+                self._precollect_scoped_locals(child)
+            return
         if not isinstance(node, tuple):
-            return found
-        if node[0] == "var_def":
+            return
+        kind = node[0]
+        if kind == "var_def":
             for name in node[2]:
-                if name not in found:
-                    found.append(name)
+                self._declare_slot(name, node[1])
+        elif kind == "if_else":
+            self._push_scope()
+            self._precollect_scoped_locals(node[2])
+            self._pop_scope()
+            self._push_scope()
+            self._precollect_scoped_locals(node[3])
+            self._pop_scope()
+        elif kind == "if":
+            self._push_scope()
+            self._precollect_scoped_locals(node[2])
+            self._pop_scope()
+        elif kind == "while":
+            self._push_scope()
+            self._precollect_scoped_locals(node[2])
+            self._pop_scope()
+        elif kind == "block":
+            self._push_scope()
+            self._precollect_scoped_locals(node[1])
+            self._pop_scope()
         else:
             for child in node[1:]:
                 if isinstance(child, (list, tuple)):
-                    self._collect_locals(child, found)
-        return found
-
-    def _collect_local_types(self, node, found=None):
-        if found is None:
-            found = {}
-        if node is None:
-            return found
-        if isinstance(node, list):
-            for child in node:
-                self._collect_local_types(child, found)
-            return found
-        if not isinstance(node, tuple):
-            return found
-        if node[0] == "var_def":
-            for name in node[2]:
-                found[name] = node[1]
-        else:
-            for child in node[1:]:
-                if isinstance(child, (list, tuple)):
-                    self._collect_local_types(child, found)
-        return found
+                    self._precollect_scoped_locals(child)
 
     def _emit_callable(self, name, return_type, params, body, is_method=False, class_name=None):
         """Emit FUNCTION_DEF + body for a function or method."""
         if is_method:
-            # Hidden this parameter
             param_names = ["this"] + [p[2] for p in params]
             param_type_pairs = [("object", "this")] + [
                 (p[1], p[2]) for p in params
@@ -496,25 +532,32 @@ class IRGenerator:
             param_names = [p[2] for p in params]
             param_type_pairs = [(p[1], p[2]) for p in params]
 
-        locals_list = self._collect_locals(body)
         saved_types = dict(self.value_types)
         saved_vars = dict(self.var_types)
         saved_class = getattr(self, "current_class", None)
+        saved_env = self.env_stack
+        saved_serial = self.local_serial
+        saved_locals = self.scoped_locals
+        saved_local_types = self.scoped_local_types
+
+        # Pass 1: discover unique slots for shadowed locals
+        self.env_stack = [{}]
+        self.local_serial = 0
+        self.scoped_locals = []
+        self.scoped_local_types = {}
         self.value_types = {}
         self.var_types = {}
-        self.current_class = class_name
         for ptype, pname in param_type_pairs:
-            # object refs use class name when known
+            self.env_stack[0][pname] = pname
             if pname == "this" and class_name:
                 self.var_types[pname] = class_name
                 self.value_types[pname] = class_name
             else:
                 self.var_types[pname] = ptype
                 self.value_types[pname] = ptype
-        local_types = self._collect_local_types(body)
-        for lname, ltype in local_types.items():
-            self.var_types[lname] = ltype
-            self.value_types[lname] = ltype
+        self._precollect_scoped_locals(body)
+        locals_list = list(self.scoped_locals)
+        local_types = dict(self.scoped_local_types)
 
         self.add_instruction(
             IRInstruction(
@@ -531,10 +574,32 @@ class IRGenerator:
                 label=name,
             )
         )
+
+        # Pass 2: emit body with the same slot allocation order
+        self.env_stack = [{}]
+        self.local_serial = 0
+        self.scoped_locals = []
+        self.scoped_local_types = {}
+        self.value_types = {}
+        self.var_types = {}
+        self.current_class = class_name
+        for ptype, pname in param_type_pairs:
+            self.env_stack[0][pname] = pname
+            if pname == "this" and class_name:
+                self.var_types[pname] = class_name
+                self.value_types[pname] = class_name
+            else:
+                self.var_types[pname] = ptype
+                self.value_types[pname] = ptype
         self._generate_node(body)
+
         self.value_types = saved_types
         self.var_types = saved_vars
         self.current_class = saved_class
+        self.env_stack = saved_env
+        self.local_serial = saved_serial
+        self.scoped_locals = saved_locals
+        self.scoped_local_types = saved_local_types
 
     def _generate_class_methods(self, class_node):
         class_name = class_node[1]

@@ -39,6 +39,8 @@ class Compiler:
         self._current_return_type: Optional[str] = None
         self._in_method = False
         self._current_class: Optional[str] = None
+        # Fields of the current class visible via this.field (§4.5 textual scope)
+        self._method_visible_fields: Optional[set] = None
         self._add_embedded_functions()
 
     def _add_embedded_functions(self):
@@ -122,6 +124,7 @@ class Compiler:
         self._current_return_type = None
         self._in_method = False
         self._current_class = None
+        self._method_visible_fields = None
 
         self._check_main_function(ast)
         self._declare_globals(ast)
@@ -225,12 +228,37 @@ class Compiler:
                         f"Method '{mname}' conflicts with a field in "
                         f"class '{class_name}'"
                     )
+                elif (
+                    class_info
+                    and class_info.parent
+                    and self.symbol_table.lookup_field(class_info.parent, mname)
+                ):
+                    self._semantic_error(
+                        f"Method '{mname}' conflicts with an inherited field "
+                        f"in class '{class_name}'"
+                    )
                 if class_info and class_info.get_method(mname):
                     self._semantic_error(
                         f"Method '{mname}' already declared in class '{class_name}'"
                     )
                 else:
                     self.symbol_table.add_class_method(mname, ret, norm)
+
+            # Field vs method name clashes (same class + inherited methods)
+            if class_info:
+                for fname in list(class_info.fields.keys()):
+                    if class_info.get_method(fname):
+                        self._semantic_error(
+                            f"Field '{fname}' conflicts with a method in "
+                            f"class '{class_name}'"
+                        )
+                    elif class_info.parent and self.symbol_table.lookup_method(
+                        class_info.parent, fname
+                    ):
+                        self._semantic_error(
+                            f"Field '{fname}' conflicts with an inherited method "
+                            f"in class '{class_name}'"
+                        )
             self.symbol_table.exit_class()
 
     def _validate_inheritance(self):
@@ -315,6 +343,30 @@ class Compiler:
             )
             return True
         return False
+
+    def _lookup_field_access(self, obj_expr, obj_t: str, field_name: str):
+        """Resolve field; this.field obeys textual definition order (§4.5)."""
+        is_this = isinstance(obj_expr, tuple) and obj_expr[0] == "this"
+        if (
+            is_this
+            and self._method_visible_fields is not None
+            and obj_t == self._current_class
+        ):
+            info = self.symbol_table.get_class(obj_t)
+            if info and info.parent:
+                inherited = self.symbol_table.lookup_field(info.parent, field_name)
+                if inherited:
+                    return inherited
+            if field_name not in self._method_visible_fields:
+                return None
+            return info.get_field(field_name) if info else None
+        return self.symbol_table.lookup_field(obj_t, field_name)
+
+    def _check_scoped_statements(self, statements):
+        """Enter a block namespace for a statement list (§4.6)."""
+        self.symbol_table.enter_scope()
+        self._check_ast_node(statements)
+        self.symbol_table.exit_scope()
 
     def _expr_type(self, node) -> Optional[str]:
         """Infer expression type; may record semantic errors as a side effect."""
@@ -401,14 +453,6 @@ class Compiler:
                     EXIT_SEMANTIC_TYPE,
                 )
                 return None
-            if op == "-":
-                if ot == "int":
-                    return "int"
-                self._semantic_error(
-                    f"Unary '-' requires int, got '{ot}'",
-                    EXIT_SEMANTIC_TYPE,
-                )
-                return None
             self._semantic_error(f"Unsupported unary operator '{op}'")
             return None
         if kind == "binary":
@@ -417,7 +461,8 @@ class Compiler:
             if self._reject_this_super_cascade(node[1]):
                 self._expr_type(node[1])
                 return None
-            obj_t = self._expr_type(node[1])
+            obj_expr = node[1]
+            obj_t = self._expr_type(obj_expr)
             field_name = node[2]
             if not obj_t or not self.symbol_table.is_class_type(obj_t):
                 self._semantic_error(
@@ -425,7 +470,7 @@ class Compiler:
                     EXIT_SEMANTIC_TYPE,
                 )
                 return None
-            field = self.symbol_table.lookup_field(obj_t, field_name)
+            field = self._lookup_field_access(obj_expr, obj_t, field_name)
             if not field:
                 self._semantic_error(
                     f"Unknown field '{field_name}' on type '{obj_t}'"
@@ -682,10 +727,17 @@ class Compiler:
             self.symbol_table.enter_class(class_name)
             prev_class = self._current_class
             self._current_class = class_name
+            # Spec §4.5: instance vars visible via this from definition to end of class
+            visible_fields: set = set()
             for member in members:
-                if member[0] == "method":
+                if member[0] == "var_def":
+                    for fname in member[2]:
+                        visible_fields.add(fname)
+                elif member[0] == "method":
+                    prev_visible = self._method_visible_fields
+                    self._method_visible_fields = set(visible_fields)
                     self._check_ast_node(member)
-                # fields already registered
+                    self._method_visible_fields = prev_visible
             self._current_class = prev_class
             self.symbol_table.exit_class()
 
@@ -751,7 +803,7 @@ class Compiler:
                         EXIT_SEMANTIC_TYPE,
                     )
                 else:
-                    field = self.symbol_table.lookup_field(obj_t, field_name)
+                    field = self._lookup_field_access(obj_expr, obj_t, field_name)
                     if not field:
                         self._semantic_error(
                             f"Unknown field '{field_name}' on type '{obj_t}'"
@@ -791,13 +843,13 @@ class Compiler:
 
         elif node_type == "if" or node_type == "if_else":
             self._check_condition(node[1], "if")
-            self._check_ast_node(node[2])
+            self._check_scoped_statements(node[2])
             if node_type == "if_else":
-                self._check_ast_node(node[3])
+                self._check_scoped_statements(node[3])
 
         elif node_type == "while":
             self._check_condition(node[1], "while")
-            self._check_ast_node(node[2])
+            self._check_scoped_statements(node[2])
 
         elif node_type == "return":
             expr = node[1]

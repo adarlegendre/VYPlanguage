@@ -1,0 +1,2 @@
+string get(void) { return "hi"; }
+void main(void) { print(get()); }

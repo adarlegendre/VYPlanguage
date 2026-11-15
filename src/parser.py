@@ -5,9 +5,10 @@ Authors: AUTHOR_NAME_1 (xlogin01), AUTHOR_NAME_2 (xlogin02)
 
 import sys
 import ply.yacc as yacc
-from lexer import tokens, lexer
+from lexer import tokens, lexer, set_type_names, collect_class_names
 
-# Precedence rules according to VYPlanguage specification
+# Precedence rules according to VYPlanguage specification (Table 1).
+# CAST is a ficticious token for (type)expr priority 9.
 precedence = (
     ('left', 'OR'),                    # 0
     ('left', 'AND'),                   # 1
@@ -16,7 +17,7 @@ precedence = (
     ('left', 'PLUS', 'MINUS'),         # 6
     ('left', 'MULTIPLY', 'DIVIDE'),    # 7
     ('right', 'NOT'),                  # 8
-    ('right', 'UMINUS'),               # 9
+    ('right', 'CAST'),                 # 9 casting
     ('left', 'DOT'),                   # 10
     ('right', 'NEW'),                  # 11
     ('right', 'ASSIGN'),               # Assignment
@@ -40,12 +41,18 @@ def p_global_definition(p):
                         | class_definition"""
     p[0] = p[1]
 
+def p_any_id(p):
+    """any_id : IDENTIFIER
+              | TYPE_ID"""
+    # Constructors are named after the class (TYPE_ID after pre-scan).
+    p[0] = p[1]
+
 def p_function_definition(p):
-    """function_definition : type IDENTIFIER LEFT_PAREN param_list RIGHT_PAREN LEFT_BRACE statement_list RIGHT_BRACE"""
+    """function_definition : type any_id LEFT_PAREN param_list RIGHT_PAREN LEFT_BRACE statement_list RIGHT_BRACE"""
     p[0] = ('function', p[1], p[2], p[4], p[7])
 
 def p_class_definition(p):
-    """class_definition : CLASS IDENTIFIER COLON IDENTIFIER LEFT_BRACE class_members RIGHT_BRACE"""
+    """class_definition : CLASS any_id COLON any_id LEFT_BRACE class_members RIGHT_BRACE"""
     p[0] = ('class', p[2], p[4], p[6])
 
 def p_class_members(p):
@@ -60,10 +67,10 @@ def p_class_members(p):
         p[0] = []
 
 def p_class_member(p):
-    """class_member : data_type IDENTIFIER class_member_tail
-                    | VOID IDENTIFIER LEFT_PAREN param_list RIGHT_PAREN LEFT_BRACE statement_list RIGHT_BRACE"""
+    """class_member : data_type any_id class_member_tail
+                    | VOID any_id LEFT_PAREN param_list RIGHT_PAREN LEFT_BRACE statement_list RIGHT_BRACE"""
     # Disambiguate fields (int x; / int a, b;) from methods (int foo(void) {...}).
-    # A shared data_type IDENTIFIER prefix must not reduce as a field before '('.
+    # A shared data_type any_id prefix must not reduce as a field before '('.
     if len(p) == 4:
         kind, payload = p[3]
         if kind == "field":
@@ -85,7 +92,7 @@ def p_class_member_tail(p):
 
 
 def p_field_tail(p):
-    """field_tail : COMMA IDENTIFIER field_tail
+    """field_tail : COMMA any_id field_tail
                   | empty"""
     if len(p) == 4:
         p[0] = [p[2]] + p[3]
@@ -95,17 +102,17 @@ def p_field_tail(p):
 def p_param_list(p):
     """param_list : param_list COMMA param
                   | param
-                  | VOID
-                  | empty"""
+                  | VOID"""
+    # Spec §4.2: empty parameter list must be written as void, not ().
     if len(p) == 4:
         p[0] = p[1] + [p[3]]
-    elif len(p) == 2 and p[1] != 'void' and p[1] is not None:
+    elif p[1] != 'void':
         p[0] = [p[1]]
     else:
         p[0] = []
 
 def p_param(p):
-    """param : data_type IDENTIFIER"""
+    """param : data_type any_id"""
     p[0] = ('param', p[1], p[2])
 
 def p_type(p):
@@ -115,7 +122,9 @@ def p_type(p):
 
 def p_data_type(p):
     """data_type : prim_type
+                 | TYPE_ID
                  | IDENTIFIER"""
+    # TYPE_ID for known classes; IDENTIFIER kept so unknown types are semantic errors.
     p[0] = p[1]
 
 def p_prim_type(p):
@@ -150,16 +159,16 @@ def p_variable_definition(p):
     p[0] = ('var_def', p[1], p[2])
 
 def p_variable_list(p):
-    """variable_list : variable_list COMMA IDENTIFIER
-                     | IDENTIFIER"""
+    """variable_list : variable_list COMMA any_id
+                     | any_id"""
     if len(p) == 4:
         p[0] = p[1] + [p[3]]
     else:
         p[0] = [p[1]]
 
 def p_assignment_statement(p):
-    """assignment_statement : IDENTIFIER ASSIGN expression SEMICOLON
-                            | expression DOT IDENTIFIER ASSIGN expression SEMICOLON"""
+    """assignment_statement : any_id ASSIGN expression SEMICOLON
+                            | expression DOT any_id ASSIGN expression SEMICOLON"""
     if len(p) == 5:
         p[0] = ("assign", p[1], p[3])
     else:
@@ -175,11 +184,11 @@ def p_while_statement(p):
     p[0] = ('while', p[3], p[6])
 
 def p_function_call_statement(p):
-    """function_call_statement : IDENTIFIER LEFT_PAREN arg_list RIGHT_PAREN SEMICOLON"""
+    """function_call_statement : any_id LEFT_PAREN arg_list RIGHT_PAREN SEMICOLON"""
     p[0] = ('function_call', p[1], p[3])
 
 def p_method_call_statement(p):
-    """method_call_statement : expression DOT IDENTIFIER LEFT_PAREN arg_list RIGHT_PAREN SEMICOLON"""
+    """method_call_statement : expression DOT any_id LEFT_PAREN arg_list RIGHT_PAREN SEMICOLON"""
     p[0] = ('method_call', p[1], p[3], p[5])
 
 def p_return_statement(p):
@@ -208,6 +217,7 @@ def p_arg_list(p):
 def p_expression(p):
     """expression : binary_expression
                  | unary_expression
+                 | cast_expression
                  | primary_expression"""
     p[0] = p[1]
 
@@ -227,21 +237,27 @@ def p_binary_expression(p):
     p[0] = ('binary', p[2], p[1], p[3])
 
 def p_unary_expression(p):
-    """unary_expression : NOT expression
-                        | MINUS expression %prec UMINUS"""
+    """unary_expression : NOT expression"""
+    # Base language has no unary minus/plus (MINUS extension).
     p[0] = ('unary', p[1], p[2])
 
+def p_cast_expression(p):
+    """cast_expression : LEFT_PAREN prim_type RIGHT_PAREN expression %prec CAST
+                       | LEFT_PAREN TYPE_ID RIGHT_PAREN expression %prec CAST"""
+    # Only prim_type / TYPE_ID (not bare IDENTIFIER) so (a) stays grouping.
+    # Spec priority 9: (string)a + s => ((string)a) + s
+    p[0] = ("cast", p[2], p[4])
+
 def p_primary_expression(p):
-    """primary_expression : IDENTIFIER
+    """primary_expression : any_id
                           | INTEGER_LITERAL
                           | STRING_LITERAL
                           | THIS
                           | SUPER
-                          | NEW IDENTIFIER
-                          | LEFT_PAREN type RIGHT_PAREN expression
-                          | IDENTIFIER LEFT_PAREN arg_list RIGHT_PAREN
-                          | expression DOT IDENTIFIER LEFT_PAREN arg_list RIGHT_PAREN
-                          | expression DOT IDENTIFIER
+                          | NEW any_id
+                          | any_id LEFT_PAREN arg_list RIGHT_PAREN
+                          | expression DOT any_id LEFT_PAREN arg_list RIGHT_PAREN
+                          | expression DOT any_id
                           | LEFT_PAREN expression RIGHT_PAREN"""
     if len(p) == 2:
         # Tag literals vs identifiers so later phases can tell them apart
@@ -251,18 +267,15 @@ def p_primary_expression(p):
             p[0] = ("int_lit", p[1])
         elif tok_type == "STRING_LITERAL":
             p[0] = ("str_lit", p[1])
-        elif tok_type == "IDENTIFIER":
-            p[0] = ("var", p[1])
         elif tok_type == "THIS":
             p[0] = ("this",)
         elif tok_type == "SUPER":
             p[0] = ("super",)
         else:
-            p[0] = ("primary", p[1])
+            # any_id (IDENTIFIER or TYPE_ID name string)
+            p[0] = ("var", p[1])
     elif len(p) == 3:
         p[0] = ("new", p[2])
-    elif len(p) == 5 and p[1] == "(":
-        p[0] = ("cast", p[2], p[4])
     elif len(p) == 5 and p[2] == "(":
         p[0] = ("function_call_expr", p[1], p[3])
     elif len(p) == 7 and p[2] == ".":
@@ -300,6 +313,9 @@ def parse(input_text):
     """
     global syntax_error
     syntax_error = False
+    # Spec §4.5: class names are visible everywhere — pre-scan so casts use TYPE_ID
+    # and (var) parentheses are not mistaken for casts.
+    set_type_names(collect_class_names(input_text))
     lexer.lineno = 1
     ast = parser.parse(input_text, lexer=lexer)
     if ast is None:
